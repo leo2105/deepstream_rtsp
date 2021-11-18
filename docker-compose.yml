@@ -1,0 +1,51 @@
+version: "3.8"
+
+services: # Processing AI in RTSP
+  deepstream:
+    runtime: nvidia
+    build:
+        context: ds-analytics
+        dockerfile: Dockerfile
+    working_dir: /app
+    shm_size: 1g
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    stdin_open: true # docker run -i
+    tty: true        # docker run -t
+    restart: always
+    privileged: true
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - DISPLAY=$DISPLAY
+    volumes:
+        - ./ds-analytics:/app
+        - /tmp/.X11-unix:/tmp/.X11-unix
+  rtsp-server: # Convert out video to RTSP
+    build: 
+      context: rtsp-simple-server
+      dockerfile: Dockerfile
+    environment:
+      - RTSP_PORT=8554
+    volumes:
+      - ./rtsp-simple-server/rtsp-simple-server_ffmpeg.yml:/app/rtsp-simple-server.yml # modificar endereco do video
+      - /home/dod/Videos/:/samples/ # modificar pasta do seu video
+    command: ./rtsp-simple-server
+  rtsp-relay: # Output RTSP from RTSP inside
+    image: flaviostutz/rtsp-relay
+    ports:
+      - 8559:8554
+    restart: always
+    environment:
+#        - SOURCE_URL=rtsp://rtsp-server:8554/people_london
+        - SOURCE_URL=rtsp://deepstream:8554/ds-test
+
+# terminal
+# sudo docker-compose up --build -d
+# sudo docker exec -it deepstream_rtsp_deepstream_1 bash
+# python3 deepstream_test1_rtsp_in_rtsp_out.py -i rtsp://rtsp-server:8554/people_london
+# su vlcuser -c "vlc rtsp://localhost:8554/ds-test" (inside deepstream) (NAO)
+
+# outro terminal
+# vlc rtsp://localhost:8559/stream (Outside with rtsp-relay service running)
